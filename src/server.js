@@ -137,6 +137,8 @@ app.get('/api/status', async (req, res) => {
 });
 
 // API: переключить сборку
+
+
 app.post('/api/switch', async (req, res) => {
   try {
     const { buildName } = req.body;
@@ -157,12 +159,27 @@ app.post('/api/switch', async (req, res) => {
       });
     }
 
+    // Ищем main.py
     const mainPyPath = findMainPy(buildPath);
 
     if (!mainPyPath) {
       return res.status(400).json({
         success: false,
         error: `main.py не найден в ${buildPath}`
+      });
+    }
+
+    // У каждой сборки свой embedded Python
+    const pythonPath = path.join(
+      buildPath,
+      'python_embeded',
+      'python.exe'
+    );
+
+    if (!fs.existsSync(pythonPath)) {
+      return res.status(400).json({
+        success: false,
+        error: `python.exe не найден: ${pythonPath}`
       });
     }
 
@@ -174,26 +191,36 @@ app.post('/api/switch', async (req, res) => {
     const serviceName = config.serviceName;
     const port = config.port;
 
+    console.log('========================================');
     console.log(`Переключение на сборку: ${buildName}`);
+    console.log(`Application: ${pythonPath}`);
     console.log(`AppDirectory: ${buildPath}`);
     console.log(`main.py: ${relativeMainPy}`);
 
     // 1. Остановить ComfyUI
     console.log('Остановка ComfyUI...');
+
     await execPromise(
       `& "${nssmPath}" stop "${serviceName}"`
     );
 
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // 2. Изменить AppDirectory
+    // 2. Изменить Application (Python)
+    console.log('Изменение Application...');
+
+    await execPromise(
+      `& "${nssmPath}" set "${serviceName}" Application "${pythonPath}"`
+    );
+
+    // 3. Изменить AppDirectory
     console.log('Изменение AppDirectory...');
 
     await execPromise(
       `& "${nssmPath}" set "${serviceName}" AppDirectory "${buildPath}"`
     );
 
-    // 3. Изменить AppParameters
+    // 4. Изменить AppParameters
     const appParams =
       `-s "${relativeMainPy}" ` +
       `--windows-standalone-build ` +
@@ -209,26 +236,53 @@ app.post('/api/switch', async (req, res) => {
       `& "${nssmPath}" set "${serviceName}" AppParameters '${appParams}'`
     );
 
-    // 4. Запустить ComfyUI
+    // 5. Запустить ComfyUI
     console.log('Запуск ComfyUI...');
 
     await execPromise(
       `& "${nssmPath}" start "${serviceName}"`
     );
 
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Даём ComfyUI время запуститься
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    // 6. Проверяем фактический статус службы
+    const statusResult = await execPromise(
+      `Get-Service "${serviceName}" | Select-Object -ExpandProperty Status`
+    );
+
+    const status = statusResult.stdout.trim();
+
+    console.log(`Статус ComfyUI после запуска: ${status}`);
+
+    if (status !== 'Running') {
+      return res.status(500).json({
+        success: false,
+        error: `ComfyUI не запустилась. Текущий статус: ${status}`,
+        buildName,
+        buildPath,
+        pythonPath,
+        mainPy: relativeMainPy
+      });
+    }
 
     console.log(`Сборка ${buildName} успешно запущена`);
+    console.log('========================================');
 
     res.json({
       success: true,
       message: `Сборка ${buildName} запущена`,
       buildName,
-      buildPath
+      buildPath,
+      pythonPath,
+      mainPy: relativeMainPy,
+      status
     });
 
   } catch (error) {
+    console.error('========================================');
     console.error('SWITCH ERROR:', error);
+    console.error('========================================');
 
     res.status(500).json({
       success: false,
@@ -239,6 +293,8 @@ app.post('/api/switch', async (req, res) => {
     });
   }
 });
+
+
 
 // API: перезагрузить сервер
 app.post('/api/reboot', async (req, res) => {
