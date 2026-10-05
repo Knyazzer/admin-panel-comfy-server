@@ -93,46 +93,90 @@ app.get('/api/status', async (req, res) => {
     const nssmPath = config.nssmPath;
     const serviceName = config.serviceName;
 
-    // Получить текущий AppDirectory из службы
-    const dirCmd = `& "${nssmPath}" get ${serviceName} AppDirectory`;
-    const dirResult = await execPromise(dirCmd);
+    const normalizePath = (value) =>
+      String(value || '')
+        .trim()
+        .replace(/^["']|["']$/g, '')
+        .replace(/\//g, '\\')
+        .replace(/\\+$/, '')
+        .toLowerCase();
+
+    // Получаем AppDirectory из NSSM
+    const dirResult = await execPromise(
+      `& "${nssmPath}" get "${serviceName}" AppDirectory`
+    );
+
     const currentPath = dirResult.stdout.trim();
+    const normalizedCurrentPath = normalizePath(currentPath);
 
-    // Получить статус службы
-    const statusCmd = `Get-Service ${serviceName} | Select-Object Status | ConvertTo-Json`;
-    const statusResult = await execPromise(statusCmd);
-    const status = JSON.parse(statusResult.stdout).Status;
+    // Получаем статус Windows-службы
+    const statusResult = await execPromise(
+      `Get-Service -Name "${serviceName}" | Select-Object -ExpandProperty Status`
+    );
 
-    // Получить порт
-    const portCmd = `& "${nssmPath}" get ${serviceName} AppParameters`;
-    const portResult = await execPromise(portCmd);
-    const params = portResult.stdout.trim();
+    const rawStatus = statusResult.stdout.trim();
+
+    // Получаем параметры запуска
+    const paramsResult = await execPromise(
+      `& "${nssmPath}" get "${serviceName}" AppParameters`
+    );
+
+    const params = paramsResult.stdout.trim();
+
+    // Определяем порт
     const portMatch = params.match(/--port\s+(\d+)/);
     const port = portMatch ? portMatch[1] : '8188';
 
-    // Найти имя сборки по пути
+    // Определяем текущую сборку
     const buildsDir = config.buildsPath;
     let currentBuild = 'Неизвестно';
-    if (fs.existsSync(buildsDir)) {
-      const builds = fs.readdirSync(buildsDir, { withFileTypes: true })
-        .filter(dirent => dirent.isDirectory())
-        .map(dirent => dirent.name);
 
-      currentBuild = builds.find(name => {
+    if (fs.existsSync(buildsDir)) {
+      const entries = fs.readdirSync(buildsDir, {
+        withFileTypes: true
+      });
+
+      const builds = entries
+        .filter(entry => entry.isDirectory())
+        .map(entry => entry.name);
+
+      const matchedBuild = builds.find(name => {
         const buildPath = path.join(buildsDir, name);
-        return currentPath.includes(buildPath) || buildPath.includes(currentPath);
-      }) || 'Неизвестно';
+        return normalizePath(buildPath) === normalizedCurrentPath;
+      });
+
+      if (matchedBuild) {
+        currentBuild = matchedBuild;
+      }
     }
 
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    console.log('STATUS:');
+    console.log('  AppDirectory:', currentPath);
+    console.log('  Current build:', currentBuild);
+    console.log('  Service status:', rawStatus);
+    console.log('  Port:', port);
+
+    res.setHeader(
+      'Content-Type',
+      'application/json; charset=utf-8'
+    );
+
     res.json({
       currentBuild,
-      status,
+      status: rawStatus,
       port,
       currentPath
     });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('STATUS ERROR:', error);
+
+    res.status(500).json({
+      error: error.message || 'Ошибка получения статуса',
+      stderr: error.stderr || '',
+      stdout: error.stdout || '',
+      command: error.command || ''
+    });
   }
 });
 
