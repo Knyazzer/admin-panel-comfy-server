@@ -7,10 +7,15 @@
     "start": "node src/server.js",
     "dev": "node src/server.js"
   },
-  "keywords": ["comfyui", "admin", "control-panel"],
+  "keywords": [
+    "comfyui",
+    "admin",
+    "control-panel"
+  ],
   "author": "KNZ Studio",
   "license": "MIT",
   "dependencies": {
+    "cors": "^2.8.6",
     "express": "^4.18.2"
   }
 }
