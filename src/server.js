@@ -13,13 +13,30 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Утилита: выполнить команду и вернуть промис
 function execPromise(command) {
   return new Promise((resolve, reject) => {
-    exec(command, { encoding: 'utf8', shell: 'powershell.exe', windowsHide: true }, (error, stdout, stderr) => {
-      if (error) {
-        reject({ error: error.message, stderr });
-      } else {
-        resolve({ stdout, stderr });
+    exec(
+      command,
+      {
+        encoding: 'utf8',
+        shell: 'powershell.exe',
+        windowsHide: true,
+        maxBuffer: 10 * 1024 * 1024
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject({
+            message: error.message,
+            stdout: stdout || '',
+            stderr: stderr || '',
+            command
+          });
+        } else {
+          resolve({
+            stdout: stdout || '',
+            stderr: stderr || ''
+          });
+        }
       }
-    });
+    );
   });
 }
 
@@ -123,39 +140,103 @@ app.get('/api/status', async (req, res) => {
 app.post('/api/switch', async (req, res) => {
   try {
     const { buildName } = req.body;
+
     if (!buildName) {
-      return res.status(400).json({ error: 'buildName обязателен' });
+      return res.status(400).json({
+        success: false,
+        error: 'buildName обязателен'
+      });
     }
 
     const buildPath = path.join(config.buildsPath, buildName);
-    const mainPyPath = findMainPy(buildPath);
-    if (!mainPyPath) {
-      return res.status(400).json({ error: `main.py не найден в ${buildPath}` });
+
+    if (!fs.existsSync(buildPath)) {
+      return res.status(400).json({
+        success: false,
+        error: `Сборка не найдена: ${buildPath}`
+      });
     }
 
-    // Вычислить относительный путь от buildPath до main.py
-    const relativeMainPy = path.relative(buildPath, mainPyPath).replace(/\\/g, '/');
+    const mainPyPath = findMainPy(buildPath);
+
+    if (!mainPyPath) {
+      return res.status(400).json({
+        success: false,
+        error: `main.py не найден в ${buildPath}`
+      });
+    }
+
+    const relativeMainPy = path
+      .relative(buildPath, mainPyPath)
+      .replace(/\\/g, '/');
 
     const nssmPath = config.nssmPath;
     const serviceName = config.serviceName;
     const port = config.port;
 
-    // Остановить службу
-    await execPromise(`& "${nssmPath}" stop ${serviceName}`);
+    console.log(`Переключение на сборку: ${buildName}`);
+    console.log(`AppDirectory: ${buildPath}`);
+    console.log(`main.py: ${relativeMainPy}`);
+
+    // 1. Остановить ComfyUI
+    console.log('Остановка ComfyUI...');
+    await execPromise(
+      `& "${nssmPath}" stop "${serviceName}"`
+    );
+
     await new Promise(resolve => setTimeout(resolve, 2000));
 
-    // Сменить путь и параметры
-    await execPromise(`& "${nssmPath}" set ${serviceName} AppDirectory "${buildPath}"`);
-    const appParams = `-s ${relativeMainPy} --windows-standalone-build --max-upload-size 999 --enable-manager --enable-manager-legacy-ui --listen 127.0.0.1 --port ${port}`;
-    await execPromise(`& "${nssmPath}" set ${serviceName} AppParameters "${appParams}"`);
+    // 2. Изменить AppDirectory
+    console.log('Изменение AppDirectory...');
 
-    // Запустить службу
-    await execPromise(`& "${nssmPath}" start ${serviceName}`);
+    await execPromise(
+      `& "${nssmPath}" set "${serviceName}" AppDirectory "${buildPath}"`
+    );
+
+    // 3. Изменить AppParameters
+    const appParams =
+      `-s "${relativeMainPy}" ` +
+      `--windows-standalone-build ` +
+      `--max-upload-size 999 ` +
+      `--enable-manager ` +
+      `--enable-manager-legacy-ui ` +
+      `--listen 127.0.0.1 ` +
+      `--port ${port}`;
+
+    console.log(`AppParameters: ${appParams}`);
+
+    await execPromise(
+      `& "${nssmPath}" set "${serviceName}" AppParameters '${appParams}'`
+    );
+
+    // 4. Запустить ComfyUI
+    console.log('Запуск ComfyUI...');
+
+    await execPromise(
+      `& "${nssmPath}" start "${serviceName}"`
+    );
+
     await new Promise(resolve => setTimeout(resolve, 3000));
 
-    res.json({ success: true, message: `Сборка ${buildName} запущена` });
+    console.log(`Сборка ${buildName} успешно запущена`);
+
+    res.json({
+      success: true,
+      message: `Сборка ${buildName} запущена`,
+      buildName,
+      buildPath
+    });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('SWITCH ERROR:', error);
+
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Ошибка выполнения команды',
+      stderr: error.stderr || '',
+      stdout: error.stdout || '',
+      command: error.command || ''
+    });
   }
 });
 
