@@ -184,11 +184,29 @@
       color: #38bdf8;
       font-weight: 500;
       transition: all 0.2s;
-      display: block;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      position: relative;
     }
     .link-card:hover {
       background: #161d2b;
       transform: translateY(-2px);
+    }
+    .status-indicator {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #4b5563;
+      flex-shrink: 0;
+      transition: all 0.3s;
+    }
+    .status-indicator.online {
+      background: #6ee7b7;
+      box-shadow: 0 0 8px rgba(110,231,183,0.6);
+    }
+    .status-indicator.offline {
+      background: #f87171;
     }
   </style>
 </head>
@@ -233,9 +251,14 @@
     <div class="links-section">
       <h2>Быстрые ссылки</h2>
       <div class="links-grid">
-        <a href="https://comfy-server.impala-justice.ts.net/" target="_blank" class="link-card">ComfyUI</a>
-        <a href="https://comfy-server.impala-justice.ts.net:8443/" target="_blank" class="link-card">Filebrowser</a>
-        <a href="https://login.tailscale.com/admin/machines" target="_blank" class="link-card">Tailscale Admin</a>
+        <a href="https://comfy-server.impala-justice.ts.net/" target="_blank" class="link-card">
+          <span class="status-indicator" id="indicator-comfy"></span>
+          <span>ComfyUI</span>
+        </a>
+        <a href="https://comfy-server.impala-justice.ts.net:8443/" target="_blank" class="link-card">
+          <span class="status-indicator" id="indicator-filebrowser"></span>
+          <span>Filebrowser</span>
+        </a>
       </div>
     </div>
   </div>
@@ -250,6 +273,25 @@
       msgDiv.textContent = text;
       msgDiv.className = `message message-${type}`;
       setTimeout(() => { msgDiv.textContent = ''; msgDiv.className = ''; }, 5000);
+    }
+
+    // Проверка доступности сервисов (для индикаторов)
+    async function checkServiceHealth(url, indicatorId) {
+      const indicator = document.getElementById(indicatorId);
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3000);
+        await fetch(url, { method: 'HEAD', signal: controller.signal });
+        clearTimeout(timeout);
+        indicator.className = 'status-indicator online';
+      } catch (error) {
+        indicator.className = 'status-indicator offline';
+      }
+    }
+
+    function updateServiceIndicators() {
+      checkServiceHealth('https://comfy-server.impala-justice.ts.net/', 'indicator-comfy');
+      checkServiceHealth('https://comfy-server.impala-justice.ts.net:8443/', 'indicator-filebrowser');
     }
 
     // Загрузить статус
@@ -360,8 +402,10 @@
     // Первая загрузка
     loadStatus();
     loadBuilds();
+    updateServiceIndicators();
     // Автообновление статуса каждые 10 секунд
     setInterval(loadStatus, 10000);
+    setInterval(updateServiceIndicators, 10000);
   </script>
 </body>
 </html>
