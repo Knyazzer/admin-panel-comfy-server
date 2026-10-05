@@ -11,7 +11,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 // Утилита: выполнить команду и вернуть промис
 function execPromise(command) {
   return new Promise((resolve, reject) => {
-    exec(command, { encoding: 'utf8', shell: 'powershell.exe' }, (error, stdout, stderr) => {
+    exec(command, { encoding: 'utf8', shell: 'powershell.exe', windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         reject({ error: error.message, stderr });
       } else {
@@ -61,6 +61,7 @@ app.get('/api/builds', async (req, res) => {
       })
       .filter(Boolean);
 
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json({ builds });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -77,6 +78,44 @@ app.get('/api/status', async (req, res) => {
     const dirCmd = `& "${nssmPath}" get ${serviceName} AppDirectory`;
     const dirResult = await execPromise(dirCmd);
     const currentPath = dirResult.stdout.trim();
+
+    // Получить статус службы
+    const statusCmd = `Get-Service ${serviceName} | Select-Object Status | ConvertTo-Json`;
+    const statusResult = await execPromise(statusCmd);
+    const status = JSON.parse(statusResult.stdout).Status;
+
+    // Получить порт
+    const portCmd = `& "${nssmPath}" get ${serviceName} AppParameters`;
+    const portResult = await execPromise(portCmd);
+    const params = portResult.stdout.trim();
+    const portMatch = params.match(/--port\s+(\d+)/);
+    const port = portMatch ? portMatch[1] : '8188';
+
+    // Найти имя сборки по пути
+    const buildsDir = config.buildsDirectory;
+    let currentBuild = 'Неизвестно';
+    if (fs.existsSync(buildsDir)) {
+      const builds = fs.readdirSync(buildsDir, { withFileTypes: true })
+        .filter(dirent => dirent.isDirectory())
+        .map(dirent => dirent.name);
+
+      currentBuild = builds.find(name => {
+        const buildPath = path.join(buildsDir, name);
+        return currentPath.includes(buildPath) || buildPath.includes(currentPath);
+      }) || 'Неизвестно';
+    }
+
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.json({
+      currentBuild,
+      status,
+      port,
+      currentPath
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
     const currentBuild = currentPath ? path.basename(currentPath) : null;
 
     // Получить статус службы (Running/Stopped)

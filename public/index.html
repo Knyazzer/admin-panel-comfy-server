@@ -341,6 +341,10 @@
             document.getElementById('btn-apply').disabled = false;
           });
         });
+
+        // Сбросить выбор при перезагрузке списка
+        selectedBuild = null;
+        document.getElementById('btn-apply').disabled = true;
       } catch (error) {
         showMessage('Ошибка загрузки сборок: ' + error.message, 'error');
       }
@@ -348,7 +352,10 @@
 
     // Применить сборку
     document.getElementById('btn-apply').addEventListener('click', async () => {
-      if (!selectedBuild) return;
+      if (!selectedBuild) {
+        showMessage('Выберите сборку из списка', 'error');
+        return;
+      }
       if (!confirm(`Переключить на сборку "${selectedBuild}"?\n\nТекущая служба будет остановлена и перезапущена.`)) return;
 
       const btn = document.getElementById('btn-apply');
