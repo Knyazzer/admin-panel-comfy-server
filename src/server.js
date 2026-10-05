@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const { exec } = require('child_process');
+const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const config = require('../config.json');
@@ -81,6 +83,85 @@ function findMainPy(dir, maxDepth = 2) {
   }
   return search(dir, 0);
 }
+
+
+
+// Проверка локального HTTP/HTTPS сервиса.
+// Важно: даже HTTP 404 означает, что сервис отвечает,
+// поэтому для health-check считаем любой полученный HTTP-ответ признаком online.
+function checkLocalService(url, timeout = 3000) {
+  return new Promise((resolve) => {
+    const parsedUrl = new URL(url);
+    const client = parsedUrl.protocol === 'https:' ? https : http;
+
+    const request = client.request(
+      {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port,
+        path: parsedUrl.pathname || '/',
+        method: 'GET',
+        timeout,
+
+        // Нужно для локального HTTPS, если используется
+        // самоподписанный сертификат.
+        rejectUnauthorized: false
+      },
+      (response) => {
+        response.resume();
+
+        resolve({
+          online: true,
+          statusCode: response.statusCode || 0
+        });
+      }
+    );
+
+    request.on('timeout', () => {
+      request.destroy();
+      resolve({
+        online: false,
+        error: 'Timeout'
+      });
+    });
+
+    request.on('error', (error) => {
+      resolve({
+        online: false,
+        error: error.message
+      });
+    });
+
+    request.end();
+  });
+}
+
+// API: health-check локальных сервисов
+app.get('/api/health', async (req, res) => {
+  try {
+    const comfy = await checkLocalService(
+      'http://127.0.0.1:8188/'
+    );
+
+    const filebrowser = await checkLocalService(
+      'http://127.0.0.1:8443/'
+    );
+
+    res.json({
+      comfyui: comfy,
+      filebrowser: filebrowser
+    });
+
+  } catch (error) {
+    console.error('HEALTH ERROR:', error);
+
+    res.status(500).json({
+      error: error.message
+    });
+  }
+});
+
+
+
 
 // API: получить список сборок (папки в C:\comfy-builds с main.py)
 app.get('/api/builds', async (req, res) => {

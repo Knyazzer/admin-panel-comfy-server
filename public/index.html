@@ -276,18 +276,43 @@
     }
 
     // Проверка доступности сервисов (для индикаторов)
-    async function checkServiceHealth(url, indicatorId) {
-      const indicator = document.getElementById(indicatorId);
-      try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 3000);
-        await fetch(url, { method: 'HEAD', signal: controller.signal });
-        clearTimeout(timeout);
-        indicator.className = 'status-indicator online';
-      } catch (error) {
-        indicator.className = 'status-indicator offline';
-      }
+// Проверка доступности сервисов через backend.
+// Браузер больше не обращается напрямую к Tailscale URL,
+// поэтому CORS здесь не возникает.
+async function updateServiceIndicators() {
+  const comfyIndicator = document.getElementById('indicator-comfy');
+  const filebrowserIndicator = document.getElementById('indicator-filebrowser');
+
+  try {
+    const res = await fetch('/api/health');
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
     }
+
+    const data = await res.json();
+
+    // ComfyUI
+    if (data.comfyui && data.comfyui.online) {
+      comfyIndicator.className = 'status-indicator online';
+    } else {
+      comfyIndicator.className = 'status-indicator offline';
+    }
+
+    // Filebrowser
+    if (data.filebrowser && data.filebrowser.online) {
+      filebrowserIndicator.className = 'status-indicator online';
+    } else {
+      filebrowserIndicator.className = 'status-indicator offline';
+    }
+
+  } catch (error) {
+    console.error('Health check error:', error);
+
+    comfyIndicator.className = 'status-indicator offline';
+    filebrowserIndicator.className = 'status-indicator offline';
+  }
+}
 
     function updateServiceIndicators() {
       checkServiceHealth('https://comfy-server.impala-justice.ts.net/', 'indicator-comfy');
