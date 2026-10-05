@@ -142,9 +142,7 @@ app.get('/api/health', async (req, res) => {
       'http://127.0.0.1:8188/'
     );
 
-    const filebrowser = await checkLocalService(
-      'http://127.0.0.1:8443/'
-    );
+const filebrowser = await checkLocalService('http://100.89.94.92:8443/');
 
     res.json({
       comfyui: comfy,
