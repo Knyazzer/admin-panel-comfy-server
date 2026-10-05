@@ -92,7 +92,7 @@ app.get('/api/status', async (req, res) => {
     const port = portMatch ? portMatch[1] : '8188';
 
     // Найти имя сборки по пути
-    const buildsDir = config.buildsDirectory;
+    const buildsDir = config.buildsPath;
     let currentBuild = 'Неизвестно';
     if (fs.existsSync(buildsDir)) {
       const builds = fs.readdirSync(buildsDir, { withFileTypes: true })
@@ -111,23 +111,6 @@ app.get('/api/status', async (req, res) => {
       status,
       port,
       currentPath
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-    const currentBuild = currentPath ? path.basename(currentPath) : null;
-
-    // Получить статус службы (Running/Stopped)
-    const statusCmd = `(Get-Service ${serviceName}).Status`;
-    const statusResult = await execPromise(statusCmd);
-    const status = statusResult.stdout.trim();
-
-    res.json({
-      currentBuild,
-      currentPath,
-      status,
-      port: config.port
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
