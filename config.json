@@ -1,0 +1,8 @@
+{
+  "buildsPath": "C:\\comfy-builds",
+  "nssmPath": "C:\\nssm\\nssm-2.24\\win64\\nssm.exe",
+  "serviceName": "ComfyUI",
+  "port": 8188,
+  "adminPort": 9999,
+  "appParameters": "-s main.py --windows-standalone-build --max-upload-size 999 --enable-manager --enable-manager-legacy-ui --listen 127.0.0.1 --port 8188"
+}

@@ -1,0 +1,16 @@
+{
+  "name": "comfy-control-panel",
+  "version": "1.0.0",
+  "description": "Веб-админка для управления сборками ComfyUI",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js"
+  },
+  "keywords": ["comfyui", "admin", "control-panel"],
+  "author": "KNZ Studio",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

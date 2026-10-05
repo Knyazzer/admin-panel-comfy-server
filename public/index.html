@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ComfyControl Panel</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #0a0d12 0%, #161d2b 100%);
+      color: #e8eaed;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(135deg, #38bdf8 0%, #6ee7b7 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      color: #9ca3af;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .status-card {
+      background: #1e2636;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid #2d3748;
+    }
+    .status-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .status-item {
+      background: #0f131c;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+    .status-label {
+      color: #9ca3af;
+      font-size: 0.85rem;
+      margin-bottom: 0.25rem;
+    }
+    .status-value {
+      font-size: 1.1rem;
+      font-weight: 500;
+      color: #e8eaed;
+    }
+    .status-running { color: #6ee7b7; }
+    .status-stopped { color: #f87171; }
+    .builds-section h2 {
+      font-size: 1.3rem;
+      margin-bottom: 1rem;
+      color: #e8eaed;
+    }
+    .builds-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .build-card {
+      background: #1e2636;
+      border: 2px solid #2d3748;
+      border-radius: 12px;
+      padding: 1.5rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .build-card:hover {
+      border-color: #38bdf8;
+      transform: translateY(-2px);
+    }
+    .build-card.active {
+      border-color: #6ee7b7;
+      background: linear-gradient(135deg, rgba(56,189,248,0.1) 0%, rgba(110,231,183,0.1) 100%);
+    }
+    .build-card.selected {
+      border-color: #38bdf8;
+      box-shadow: 0 0 20px rgba(56,189,248,0.3);
+    }
+    .build-name {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+      color: #e8eaed;
+    }
+    .build-path {
+      font-size: 0.8rem;
+      color: #9ca3af;
+      word-break: break-all;
+    }
+    .build-badge {
+      display: inline-block;
+      padding: 0.25rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      margin-top: 0.75rem;
+      background: #6ee7b7;
+      color: #0a0d12;
+    }
+    .actions {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #38bdf8 0%, #0891b2 100%);
+      color: #fff;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(56,189,248,0.4); }
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-secondary {
+      background: #2d3748;
+      color: #e8eaed;
+    }
+    .btn-secondary:hover { background: #374151; }
+    .btn-danger {
+      background: linear-gradient(135deg, #f87171 0%, #dc2626 100%);
+      color: #fff;
+    }
+    .btn-danger:hover { transform: translateY(-2px); box-shadow: 0 4px 20px rgba(248,113,113,0.4); }
+    .message {
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      font-size: 0.9rem;
+    }
+    .message-success {
+      background: rgba(110,231,183,0.2);
+      color: #6ee7b7;
+      border: 1px solid #6ee7b7;
+    }
+    .message-error {
+      background: rgba(248,113,113,0.2);
+      color: #f87171;
+      border: 1px solid #f87171;
+    }
+    .links-section {
+      background: #1e2636;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-top: 2rem;
+      border: 1px solid #2d3748;
+    }
+    .links-section h2 {
+      font-size: 1.2rem;
+      margin-bottom: 1rem;
+      color: #e8eaed;
+    }
+    .links-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+    }
+    .link-card {
+      background: #0f131c;
+      padding: 1rem;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #38bdf8;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: block;
+    }
+    .link-card:hover {
+      background: #161d2b;
+      transform: translateY(-2px);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>ComfyControl Panel</h1>
+    <p class="subtitle">Управление сборками ComfyUI</p>
+
+    <div id="message"></div>
+
+    <div class="status-card">
+      <h2>Статус службы</h2>
+      <div class="status-grid">
+        <div class="status-item">
+          <div class="status-label">Текущая сборка</div>
+          <div class="status-value" id="current-build">—</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Статус</div>
+          <div class="status-value" id="status">—</div>
+        </div>
+        <div class="status-item">
+          <div class="status-label">Порт</div>
+          <div class="status-value" id="port">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="builds-section">
+      <h2>Доступные сборки</h2>
+      <div class="builds-grid" id="builds-grid">
+        <p style="color: #9ca3af;">Загрузка...</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn-primary" id="btn-apply" disabled>Применить выбранную сборку</button>
+      <button class="btn-secondary" id="btn-refresh">Обновить список</button>
+      <button class="btn-danger" id="btn-reboot">Перезагрузить сервер</button>
+    </div>
+
+    <div class="links-section">
+      <h2>Быстрые ссылки</h2>
+      <div class="links-grid">
+        <a href="https://comfy-server.impala-justice.ts.net/" target="_blank" class="link-card">ComfyUI</a>
+        <a href="https://comfy-server.impala-justice.ts.net:8443/" target="_blank" class="link-card">Filebrowser</a>
+        <a href="https://login.tailscale.com/admin/machines" target="_blank" class="link-card">Tailscale Admin</a>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let selectedBuild = null;
+    let currentBuild = null;
+
+    // Показать сообщение
+    function showMessage(text, type = 'success') {
+      const msgDiv = document.getElementById('message');
+      msgDiv.textContent = text;
+      msgDiv.className = `message message-${type}`;
+      setTimeout(() => { msgDiv.textContent = ''; msgDiv.className = ''; }, 5000);
+    }
+
+    // Загрузить статус
+    async function loadStatus() {
+      try {
+        const res = await fetch('/api/status');
+        const data = await res.json();
+        currentBuild = data.currentBuild;
+        document.getElementById('current-build').textContent = data.currentBuild || 'Не запущена';
+        const statusEl = document.getElementById('status');
+        statusEl.textContent = data.status || 'Неизвестно';
+        statusEl.className = `status-value ${data.status === 'Running' ? 'status-running' : 'status-stopped'}`;
+        document.getElementById('port').textContent = data.port || '—';
+      } catch (error) {
+        showMessage('Ошибка загрузки статуса: ' + error.message, 'error');
+      }
+    }
+
+    // Загрузить список сборок
+    async function loadBuilds() {
+      try {
+        const res = await fetch('/api/builds');
+        const data = await res.json();
+        const grid = document.getElementById('builds-grid');
+        if (data.error) {
+          grid.innerHTML = `<p style="color: #f87171;">${data.error}</p>`;
+          return;
+        }
+        if (data.builds.length === 0) {
+          grid.innerHTML = '<p style="color: #9ca3af;">Сборки не найдены в D:\\comfy-builds\\</p>';
+          return;
+        }
+        grid.innerHTML = data.builds.map(build => `
+          <div class="build-card ${build.name === currentBuild ? 'active' : ''}" data-name="${build.name}">
+            <div class="build-name">${build.name}</div>
+            <div class="build-path">${build.path}</div>
+            ${build.name === currentBuild ? '<span class="build-badge">Активна</span>' : ''}
+          </div>
+        `).join('');
+
+        // Обработчики кликов
+        document.querySelectorAll('.build-card').forEach(card => {
+          card.addEventListener('click', () => {
+            document.querySelectorAll('.build-card').forEach(c => c.classList.remove('selected'));
+            card.classList.add('selected');
+            selectedBuild = card.dataset.name;
+            document.getElementById('btn-apply').disabled = false;
+          });
+        });
+      } catch (error) {
+        showMessage('Ошибка загрузки сборок: ' + error.message, 'error');
+      }
+    }
+
+    // Применить сборку
+    document.getElementById('btn-apply').addEventListener('click', async () => {
+      if (!selectedBuild) return;
+      if (!confirm(`Переключить на сборку "${selectedBuild}"?\n\nТекущая служба будет остановлена и перезапущена.`)) return;
+
+      const btn = document.getElementById('btn-apply');
+      btn.disabled = true;
+      btn.textContent = 'Переключение...';
+
+      try {
+        const res = await fetch('/api/switch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ buildName: selectedBuild })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showMessage(data.message, 'success');
+          setTimeout(() => { loadStatus(); loadBuilds(); }, 1000);
+        } else {
+          showMessage('Ошибка: ' + data.error, 'error');
+        }
+      } catch (error) {
+        showMessage('Ошибка переключения: ' + error.message, 'error');
+      } finally {
+        btn.textContent = 'Применить выбранную сборку';
+      }
+    });
+
+    // Обновить список
+    document.getElementById('btn-refresh').addEventListener('click', () => {
+      loadStatus();
+      loadBuilds();
+      showMessage('Список обновлён', 'success');
+    });
+
+    // Перезагрузка сервера
+    document.getElementById('btn-reboot').addEventListener('click', async () => {
+      if (!confirm('Перезагрузить сервер?\n\nВсе службы будут остановлены, сервер перезагрузится через 10 секунд.')) return;
+
+      try {
+        const res = await fetch('/api/reboot', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showMessage(data.message, 'success');
+        } else {
+          showMessage('Ошибка: ' + data.error, 'error');
+        }
+      } catch (error) {
+        showMessage('Ошибка перезагрузки: ' + error.message, 'error');
+      }
+    });
+
+    // Первая загрузка
+    loadStatus();
+    loadBuilds();
+    // Автообновление статуса каждые 10 секунд
+    setInterval(loadStatus, 10000);
+  </script>
+</body>
+</html>
