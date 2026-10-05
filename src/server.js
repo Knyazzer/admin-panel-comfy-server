@@ -16,23 +16,44 @@ function execPromise(command) {
     exec(
       command,
       {
-        encoding: 'utf8',
+        encoding: 'buffer',
         shell: 'powershell.exe',
         windowsHide: true,
         maxBuffer: 10 * 1024 * 1024
       },
       (error, stdout, stderr) => {
+        const decodeOutput = (data) => {
+          if (!data) return '';
+
+          const buffer = Buffer.isBuffer(data)
+            ? data
+            : Buffer.from(data);
+
+          // NSSM отдаёт некоторые значения в UTF-16LE
+          if (
+            buffer.length >= 2 &&
+            buffer[1] === 0x00
+          ) {
+            return buffer.toString('utf16le');
+          }
+
+          return buffer.toString('utf8');
+        };
+
+        const decodedStdout = decodeOutput(stdout);
+        const decodedStderr = decodeOutput(stderr);
+
         if (error) {
           reject({
             message: error.message,
-            stdout: stdout || '',
-            stderr: stderr || '',
+            stdout: decodedStdout,
+            stderr: decodedStderr,
             command
           });
         } else {
           resolve({
-            stdout: stdout || '',
-            stderr: stderr || ''
+            stdout: decodedStdout,
+            stderr: decodedStderr
           });
         }
       }
@@ -106,7 +127,9 @@ app.get('/api/status', async (req, res) => {
       `& "${nssmPath}" get "${serviceName}" AppDirectory`
     );
 
-    const currentPath = dirResult.stdout.trim();
+    const currentPath = dirResult.stdout
+  .replace(/\u0000/g, '')
+  .trim();
     const normalizedCurrentPath = normalizePath(currentPath);
 
     // Получаем статус Windows-службы
