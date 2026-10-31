@@ -4,3 +4,4 @@ dist/
 *.log
 graphify-out/
 Thumbs.db
+.kilo/
